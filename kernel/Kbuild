@@ -95,10 +95,8 @@ ccflags-y += -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat -Wno-mis
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable
 
 SUSFS_SRC := $(wildcard $(srctree)/fs/susfs.c)
-KSU_MODE := $(strip $(CONFIG_KSU))
 SUSFS_ENABLED := $(strip $(CONFIG_KSU_SUSFS))
 MANUAL_ENABLED := $(strip $(CONFIG_KSU_MANUAL_HOOKS))
-KPROBES_ENABLED := $(strip $(CONFIG_KPROBES))
 
 define KSU_REQUIRE_MANUAL_HOOKS
 ifeq ($(shell grep -q "ksu_handle_sys_reboot" $(srctree)/kernel/reboot.c; echo $$?),1)
@@ -115,44 +113,18 @@ $(error -- Manual hooks enabled but fs/stat.c is missing ksu_handle_vfs_fstat)
 endif
 endef
 
-ifeq ($(KSU_MODE),m)
-ifneq ($(SUSFS_ENABLED),n)
-$(error -- KSU=m requires KSU_SUSFS=n)
-endif
-ifneq ($(MANUAL_ENABLED),n)
-$(error -- KSU=m requires KSU_MANUAL_HOOKS=n)
-endif
-ifneq ($(KPROBES_ENABLED),y)
-$(error -- KSU=m requires KPROBES=y)
-endif
-$(info -- Wild KSU: Hook mode: Kprobes (module))
-else
 ifneq ($(SUSFS_ENABLED),n)
 ifeq ($(SUSFS_SRC),)
 $(error -- SUSFS enabled but fs/susfs.c not found)
 endif
 SUSFS_VERSION := $(shell sed -n 's/^#define SUSFS_VERSION "\(.*\)"/\1/p' $(srctree)/include/linux/susfs.h)
 $(info -- SUSFS_VERSION: $(SUSFS_VERSION))
-endif
-
-ifneq ($(SUSFS_ENABLED),n)
-ifneq ($(MANUAL_ENABLED),n)
-$(error -- KSU_SUSFS and KSU_MANUAL_HOOKS cannot be enabled together)
-endif
-endif
-
-ifneq ($(MANUAL_ENABLED),n)
+$(info -- Wild KSU: Hook mode: SUSFS)
+else ifneq ($(MANUAL_ENABLED),n)
 $(eval $(KSU_REQUIRE_MANUAL_HOOKS))
 $(info -- Wild KSU: Hook mode: Manual)
 else
-ifneq ($(SUSFS_ENABLED),n)
-$(info -- Wild KSU: Hook mode: SUSFS)
-else ifneq ($(KPROBES_ENABLED),y)
-$(error -- KSU requires KPROBES=y unless KSU_MANUAL_HOOKS=y)
-else
 $(info -- Wild KSU: Hook mode: Kprobes)
-endif
-endif
 endif
 
 # Keep a new line here!! Because someone may append config

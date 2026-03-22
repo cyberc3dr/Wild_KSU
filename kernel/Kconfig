@@ -15,7 +15,6 @@ config KSU
 config KSU_MANUAL_HOOKS
     bool "KernelSU manual hooks"
     depends on KSU=y
-    depends on !KSU_SUSFS
     default n
     help
       Enable non-kprobe mode that relies on inline manual kernel hooks.
@@ -31,7 +30,6 @@ menu "KernelSU - SUSFS"
 config KSU_SUSFS
     bool "KernelSU addon - SUSFS"
     depends on KSU=y
-    depends on !KSU_MANUAL_HOOKS
     depends on THREAD_INFO_IN_TASK
     default y
     help

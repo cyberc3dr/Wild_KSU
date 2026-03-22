@@ -22,9 +22,9 @@
 #include "selinux/selinux.h"
 #include "seccomp_cache.h"
 #include "supercalls.h"
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
 #include "syscall_hook_manager.h"
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 #include "kernel_umount.h"
 
 #ifdef CONFIG_KSU_SUSFS
@@ -89,7 +89,7 @@ static void ksu_install_manager_fd_tw_func(struct callback_head *cb)
     kfree(cb);
 }
 
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) || defined(CONFIG_KSU_MANUAL_HOOKS)
 int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 {
     // we rely on the fact that zygote always call setresuid(3) with same uids
@@ -102,7 +102,9 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
         unlikely(ksu_get_manager_appid() == new_uid % PER_USER_RANGE)) {
         spin_lock_irq(&current->sighand->siglock);
         ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
+#if !defined(CONFIG_KSU_MANUAL_HOOKS)
         ksu_set_task_tracepoint_flag(current);
+#endif
         spin_unlock_irq(&current->sighand->siglock);
 
         pr_info("install fd for manager: %d\n", new_uid);
@@ -124,9 +126,13 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
             ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
             spin_unlock_irq(&current->sighand->siglock);
         }
+#if !defined(CONFIG_KSU_MANUAL_HOOKS)
         ksu_set_task_tracepoint_flag(current);
+#endif
     } else {
+#if !defined(CONFIG_KSU_MANUAL_HOOKS)
         ksu_clear_task_tracepoint_flag_if_needed(current);
+#endif
     }
 
     // Handle kernel umount
@@ -199,7 +205,7 @@ do_umount:
 
     return 0;
 }
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 
 void ksu_setuid_hook_init(void)
 {

@@ -893,7 +893,7 @@ static inline void ksu_copy_reply_user(unsigned long user_ptr, unsigned long rep
 		pr_info("sys_reboot: reply fail\n");
 }
 
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
 static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
 {
 	struct pt_regs *real_regs = PT_REAL_REGS(regs);
@@ -1038,7 +1038,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user 
 		return -EINVAL;
 	}
 
-    // If magic2 is susfs and current process is root
+#ifdef CONFIG_KSU_SUSFS
     if (magic2 == SUSFS_MAGIC && ksu_require_root()) {
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
         if (cmd == CMD_SUSFS_ADD_SUS_PATH) {
@@ -1118,6 +1118,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user 
         }
         return -EINVAL;
     }
+#endif
 
     // Check if this is a request to install KSU fd
     if (magic2 == KSU_INSTALL_MAGIC2) {
@@ -1239,7 +1240,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user 
 	return -EINVAL;
 }
 EXPORT_SYMBOL(ksu_handle_sys_reboot); // required visiblity for toolkit
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 
 void ksu_supercalls_init(void)
 {
@@ -1251,24 +1252,24 @@ void ksu_supercalls_init(void)
                 ksu_ioctl_handlers[i].cmd);
     }
 
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
 	int rc = register_kprobe(&reboot_kp);
 	if (rc) {
 		pr_err("reboot kprobe failed: %d\n", rc);
 	} else {
 		pr_info("reboot kprobe registered successfully\n");
 	}
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
     sulog_init_heap(); // grab heap memory
 }
 
 void ksu_supercalls_exit(void)
 {
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
     unregister_kprobe(&reboot_kp);
 #else
     pr_info("susfs: do nothing\n");
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 }
 
 // IOCTL dispatcher

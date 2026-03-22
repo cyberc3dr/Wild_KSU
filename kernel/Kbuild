@@ -3,12 +3,15 @@ kernelsu-objs += allowlist.o
 kernelsu-objs += app_profile.o
 kernelsu-objs += apk_sign.o
 kernelsu-objs += sucompat.o
-ifneq ($(strip $(CONFIG_KSU_SUSFS)),y)
+ifeq ($(filter y,$(strip $(CONFIG_KSU_SUSFS) $(CONFIG_KSU_MANUAL_HOOKS))),)
 kernelsu-objs += syscall_hook_manager.o
 endif
 kernelsu-objs += throne_tracker.o
 kernelsu-objs += pkg_observer.o
 kernelsu-objs += setuid_hook.o
+ifeq ($(strip $(CONFIG_KSU_MANUAL_HOOKS)),y)
+kernelsu-objs += lsm_hooks.o
+endif
 kernelsu-objs += kernel_umount.o
 kernelsu-objs += supercalls.o
 kernelsu-objs += su_mount_ns.o
@@ -17,8 +20,6 @@ kernelsu-objs += ksud.o
 kernelsu-objs += seccomp_cache.o
 kernelsu-objs += file_wrapper.o
 kernelsu-objs += util.o
-kernelsu-objs += extras.o
-
 kernelsu-objs += extras.o
 
 kernelsu-objs += selinux/selinux.o
@@ -93,45 +94,45 @@ ccflags-y += -DEXPECTED_MANAGER_HASH=\"$(KSU_MANAGER_HASH)\"
 ccflags-y += -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat -Wno-missing-prototypes
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable
 
-## For susfs stuff ##
-ifeq ($(strip $(CONFIG_KSU_SUSFS)),y)
-ifeq ($(shell test -e $(srctree)/fs/susfs.c; echo $$?),0)
-$(eval SUSFS_VERSION=$(shell cat $(srctree)/include/linux/susfs.h | grep -E '^#define SUSFS_VERSION' | cut -d' ' -f3 | sed 's/"//g'))
-$(info )
-$(info -- SUSFS_VERSION: $(SUSFS_VERSION))
-else
-$(info -- You have not integrated susfs in your kernel yet.)
-$(info -- Read: https://gitlab.com/simonpunk/susfs4ksu)
-endif
-else
-ifneq ($(strip $(CONFIG_KPROBES)),y)
-$(info -- requires Kprobes; enable it (defconfig))
-endif
-endif
-
-## SUSFS / KPROBES info ##
-
-# Check if SUSFS is enabled and integrated
 SUSFS_SRC := $(wildcard $(srctree)/fs/susfs.c)
 
-ifdef CONFIG_KSU_SUSFS
-ifeq ($(CONFIG_KSU_SUSFS),y)
+ifeq ($(strip $(CONFIG_KSU)),m)
+ifneq ($(strip $(CONFIG_KSU_SUSFS)),n)
+$(error -- KSU=m requires KSU_SUSFS=n)
+endif
+ifneq ($(strip $(CONFIG_KSU_MANUAL_HOOKS)),n)
+$(error -- KSU=m requires KSU_MANUAL_HOOKS=n)
+endif
+ifneq ($(strip $(CONFIG_KPROBES)),y)
+$(error -- KSU=m requires KPROBES=y)
+endif
+$(info -- Wild KSU: Hook mode: Kprobes (module))
+else ifeq ($(strip $(CONFIG_KSU_SUSFS)),y)
 ifneq ($(SUSFS_SRC),)
 SUSFS_VERSION := $(shell sed -n 's/^#define SUSFS_VERSION "\(.*\)"/\1/p' $(srctree)/include/linux/susfs.h)
-$(info -- SUSFS enabled)
+$(info -- Wild KSU: Hook mode: SUSFS)
 $(info -- SUSFS_VERSION: $(SUSFS_VERSION))
 else
-$(warning SUSFS enabled but fs/susfs.c not found)
-$(warning Read: https://gitlab.com/simonpunk/susfs4ksu)
+$(error -- SUSFS enabled but fs/susfs.c not found)
 endif
+else ifeq ($(strip $(CONFIG_KSU_MANUAL_HOOKS)),y)
+$(info -- Wild KSU: Hook mode: Manual)
+ifeq ($(shell grep -q "ksu_handle_sys_reboot" $(srctree)/kernel/reboot.c; echo $$?),1)
+$(error -- Manual hooks enabled but kernel/reboot.c is missing ksu_handle_sys_reboot)
+endif
+ifeq ($(shell grep -q "ksu_handle_execveat" $(srctree)/fs/exec.c; echo $$?),1)
+$(error -- Manual hooks enabled but fs/exec.c is missing ksu_handle_execveat)
+endif
+ifeq ($(shell grep -q "ksu_handle_sys_read" $(srctree)/fs/read_write.c; echo $$?),1)
+$(error -- Manual hooks enabled but fs/read_write.c is missing ksu_handle_sys_read)
+endif
+ifeq ($(shell grep -q "ksu_handle_vfs_fstat" $(srctree)/fs/stat.c; echo $$?),1)
+$(error -- Manual hooks enabled but fs/stat.c is missing ksu_handle_vfs_fstat)
+endif
+else ifneq ($(strip $(CONFIG_KPROBES)),y)
+$(error -- KSU requires KPROBES=y unless KSU_MANUAL_HOOKS=y)
 else
-# SUSFS disabled → check KPROBES
-ifdef CONFIG_KPROBES
-ifeq ($(CONFIG_KPROBES),n)
-$(warning KSU requires Kprobes; enable it (defconfig))
-endif
-endif
-endif
+$(info -- Wild KSU: Hook mode: Kprobes)
 endif
 
 # Keep a new line here!! Because someone may append config

@@ -110,10 +110,10 @@ void escape_with_root_profile(void)
     struct cred *cred;
     struct root_profile profile;
     struct user_struct *new_user;
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
     struct task_struct *p = current;
     struct task_struct *t;
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 
     cred = prepare_creds();
     if (!cred) {
@@ -187,11 +187,11 @@ void escape_with_root_profile(void)
 
     disable_seccomp();
 
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
     for_each_thread (p, t) {
         ksu_set_task_tracepoint_flag(t);
     }
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 
     setup_mount_ns(profile.namespaces);
     return;

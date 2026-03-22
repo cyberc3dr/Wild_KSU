@@ -14,12 +14,12 @@
 #include "klog.h" // IWYU pragma: keep
 #include "manager.h"
 #include "throne_tracker.h"
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
 #include "syscall_hook_manager.h"
 #else
 #include "setuid_hook.h"
 #include "sucompat.h"
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 #include "ksud.h"
 #include "supercalls.h"
 #include "ksu.h"
@@ -66,6 +66,10 @@ __attribute__((naked)) int __init kernelsu_init_early(void)
 struct cred *ksu_cred;
 bool ksu_late_loaded;
 
+#ifdef CONFIG_KSU_MANUAL_HOOKS
+extern void __init ksu_lsm_hook_init(void);
+#endif
+
 int __init kernelsu_init(void)
 {
 #ifdef MODULE
@@ -93,7 +97,7 @@ int __init kernelsu_init(void)
 
 	ksu_supercalls_init();
 
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
     if (ksu_late_loaded) {
         pr_info("late load mode, skipping kprobe hooks\n");
 
@@ -153,7 +157,13 @@ int __init kernelsu_init(void)
         ksu_setuid_hook_init();
         ksu_sucompat_init();
 
+#ifdef CONFIG_KSU_MANUAL_HOOKS
+        ksu_lsm_hook_init();
+#endif
+
+#ifdef CONFIG_KSU_SUSFS
         susfs_init();
+#endif
 
         ksu_throne_tracker_init();
         ksu_observer_init();
@@ -170,10 +180,16 @@ int __init kernelsu_init(void)
         ksu_setuid_hook_init();
         ksu_sucompat_init();
 
+#ifdef CONFIG_KSU_MANUAL_HOOKS
+        ksu_lsm_hook_init();
+#endif
+
         ksu_allowlist_init();
         ksu_throne_tracker_init();
 
+#ifdef CONFIG_KSU_SUSFS
         susfs_init();
+#endif
         ksu_file_wrapper_init();
     }
 #endif
@@ -195,13 +211,16 @@ void kernelsu_exit(void)
 
 	ksu_observer_exit();
 
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
 	if (!ksu_late_loaded) {
 		ksu_ksud_exit();
 	}
 
 	ksu_syscall_hook_manager_exit();
-#endif // #ifndef CONFIG_KSU_SUSFS
+#else
+	ksu_setuid_hook_exit();
+	ksu_sucompat_exit();
+#endif
 
 	ksu_supercalls_exit();
 

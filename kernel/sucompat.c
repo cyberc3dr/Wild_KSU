@@ -14,9 +14,11 @@
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs_def.h>
 #include <linux/namei.h>
+#endif
+#if defined(CONFIG_KSU_SUSFS) || defined(CONFIG_KSU_MANUAL_HOOKS)
 #include "selinux/selinux.h"
 #include "objsec.h"
-#endif // #ifdef CONFIG_KSU_SUSFS
+#endif
 
 #include "allowlist.h"
 #include "feature.h"
@@ -77,7 +79,7 @@ static char __user *ksud_user_path(void)
 	return userspace_stack_buffer(ksud_path, sizeof(ksud_path));
 }
 
-#ifndef CONFIG_KSU_SUSFS
+#if !defined(CONFIG_KSU_SUSFS) && !defined(CONFIG_KSU_MANUAL_HOOKS)
 int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
 		int *mode, int *__unused_flags)
 {
@@ -242,8 +244,10 @@ int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
     if (ksu_handle_execveat_ksud(fd, filename_ptr, argv, envp, flags)) {
         return 0;
     }
-    return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp,
-                        flags);
+    if (unlikely(!ksu_su_compat_enabled)) {
+        return 0;
+    }
+    return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp, flags);
 }
 
 int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
@@ -262,7 +266,8 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
     return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) && defined(CONFIG_KSU_SUSFS) && \
+	!defined(CONFIG_KSU_MANUAL_HOOKS)
 int ksu_handle_stat(int *dfd, struct filename **filename, int *flags) {
     if (unlikely(IS_ERR(*filename) || (*filename)->name == NULL)) {
         return 0;
@@ -296,7 +301,7 @@ int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
 
     return 0;
 }
-#endif // #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+#endif
 
 int ksu_handle_devpts(struct inode *inode)
 {
@@ -322,7 +327,7 @@ int ksu_handle_devpts(struct inode *inode)
 
     return 0;
 }
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 
 // sucompat: permitted process can execute 'su' to gain root access.
 void ksu_sucompat_init()

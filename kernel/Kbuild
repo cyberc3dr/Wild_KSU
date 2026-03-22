@@ -135,13 +135,15 @@ SUSFS_VERSION := $(shell sed -n 's/^#define SUSFS_VERSION "\(.*\)"/\1/p' $(srctr
 $(info -- SUSFS_VERSION: $(SUSFS_VERSION))
 endif
 
+ifneq ($(SUSFS_ENABLED),n)
+ifneq ($(MANUAL_ENABLED),n)
+$(error -- KSU_SUSFS and KSU_MANUAL_HOOKS cannot be enabled together)
+endif
+endif
+
 ifneq ($(MANUAL_ENABLED),n)
 $(eval $(KSU_REQUIRE_MANUAL_HOOKS))
-ifneq ($(SUSFS_ENABLED),n)
-$(info -- Wild KSU: Hook mode: SUSFS + Manual)
-else
 $(info -- Wild KSU: Hook mode: Manual)
-endif
 else
 ifneq ($(SUSFS_ENABLED),n)
 $(info -- Wild KSU: Hook mode: SUSFS)

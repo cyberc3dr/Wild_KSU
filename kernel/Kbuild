@@ -3,8 +3,10 @@ kernelsu-objs += allowlist.o
 kernelsu-objs += app_profile.o
 kernelsu-objs += apk_sign.o
 kernelsu-objs += sucompat.o
-ifeq ($(filter n,$(strip $(CONFIG_KSU_SUSFS) $(CONFIG_KSU_MANUAL_HOOKS))),n n)
+ifneq ($(strip $(CONFIG_KSU_SUSFS)),y)
+ifneq ($(strip $(CONFIG_KSU_MANUAL_HOOKS)),y)
 kernelsu-objs += syscall_hook_manager.o
+endif
 endif
 kernelsu-objs += throne_tracker.o
 kernelsu-objs += pkg_observer.o

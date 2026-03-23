@@ -3,7 +3,7 @@ kernelsu-objs += allowlist.o
 kernelsu-objs += app_profile.o
 kernelsu-objs += apk_sign.o
 kernelsu-objs += sucompat.o
-ifeq ($(filter y,$(strip $(CONFIG_KSU_SUSFS) $(CONFIG_KSU_MANUAL_HOOKS))),)
+ifeq ($(filter n,$(strip $(CONFIG_KSU_SUSFS) $(CONFIG_KSU_MANUAL_HOOKS))),n n)
 kernelsu-objs += syscall_hook_manager.o
 endif
 kernelsu-objs += throne_tracker.o
@@ -95,9 +95,11 @@ ccflags-y += -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat -Wno-mis
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable
 
 SUSFS_SRC := $(wildcard $(srctree)/fs/susfs.c)
+KSU_MODE := $(strip $(CONFIG_KSU))
 SUSFS_ENABLED := $(strip $(CONFIG_KSU_SUSFS))
 MANUAL_ENABLED := $(strip $(CONFIG_KSU_MANUAL_HOOKS))
 
+HAVE_KSU_HOOK ?= 1
 define KSU_REQUIRE_MANUAL_HOOKS
 ifeq ($(shell grep -q "ksu_handle_sys_reboot" $(srctree)/kernel/reboot.c; echo $$?),1)
 $(error -- Manual hooks enabled but kernel/reboot.c is missing ksu_handle_sys_reboot)
@@ -105,26 +107,36 @@ endif
 ifeq ($(shell grep -q "ksu_handle_execveat" $(srctree)/fs/exec.c; echo $$?),1)
 $(error -- Manual hooks enabled but fs/exec.c is missing ksu_handle_execveat)
 endif
-ifeq ($(shell grep -q "ksu_handle_sys_read" $(srctree)/fs/read_write.c; echo $$?),1)
-$(error -- Manual hooks enabled but fs/read_write.c is missing ksu_handle_sys_read)
+ifeq ($(shell grep -q "ksu_handle_faccessat" $(srctree)/fs/open.c; echo $$?),1)
+$(error -- Manual hooks enabled but fs/open.c is missing ksu_handle_faccessat)
 endif
-ifeq ($(shell grep -q "ksu_handle_vfs_fstat" $(srctree)/fs/stat.c; echo $$?),1)
-$(error -- Manual hooks enabled but fs/stat.c is missing ksu_handle_vfs_fstat)
+ifeq ($(shell grep -q "ksu_handle_stat" $(srctree)/fs/stat.c; echo $$?),1)
+$(error -- Manual hooks enabled but fs/stat.c is missing ksu_handle_stat)
 endif
 endef
 
-ifneq ($(SUSFS_ENABLED),n)
+ifeq ($(KSU_MODE),m)
+$(info -- Wild KSU: Hook mode: Kprobes (LKM))
+HAVE_KSU_HOOK := 0
+else ifeq ($(SUSFS_ENABLED),y)
 ifeq ($(SUSFS_SRC),)
 $(error -- SUSFS enabled but fs/susfs.c not found)
 endif
 SUSFS_VERSION := $(shell sed -n 's/^#define SUSFS_VERSION "\(.*\)"/\1/p' $(srctree)/include/linux/susfs.h)
 $(info -- SUSFS_VERSION: $(SUSFS_VERSION))
 $(info -- Wild KSU: Hook mode: SUSFS)
-else ifneq ($(MANUAL_ENABLED),n)
-$(eval $(KSU_REQUIRE_MANUAL_HOOKS))
+HAVE_KSU_HOOK := 0
+else ifeq ($(MANUAL_ENABLED),y)
 $(info -- Wild KSU: Hook mode: Manual)
+$(eval $(KSU_REQUIRE_MANUAL_HOOKS))
+HAVE_KSU_HOOK := 0
 else
 $(info -- Wild KSU: Hook mode: Kprobes)
+HAVE_KSU_HOOK := 0
+endif
+
+ifneq ($(HAVE_KSU_HOOK),0)
+$(error -- Wild KSU: No valid hooks were found, please integrate manual hooks in your kernel)
 endif
 
 # Keep a new line here!! Because someone may append config
